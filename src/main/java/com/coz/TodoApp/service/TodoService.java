@@ -1,13 +1,13 @@
 package com.coz.TodoApp.service;
 
-import com.coz.TodoApp.dto.TodoDTO;
-import com.coz.TodoApp.entity.TodoEntity;
+import com.coz.TodoApp.entity.Todo;
+import com.coz.TodoApp.exception.BusinessLogicException;
+import com.coz.TodoApp.exception.ExceptionCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -17,48 +17,53 @@ public class TodoService {
 
     // ** Create
     // - Todo 등록
-    public TodoDTO addTodo(TodoDTO todoDTO) {
-        TodoEntity todoEntity = TodoEntity.toTodoEntity(todoDTO);
-        TodoEntity savedTodo = todoRepository.save(todoEntity);
-        return TodoDTO.toTodoDTO(savedTodo);
+    public Todo addTodo(Todo todo) {
+        verifyExistsTitle(todo.getTitle());
+        return todoRepository.save(todo);
+    }
+
+    private void verifyExistsTitle(String title) {
+        Optional<Todo> todo = todoRepository.findByTitle(title);
+        if (todo.isPresent()) throw new BusinessLogicException(ExceptionCode.TODO_EXISTS);
     }
 
     // ** Read
     // - Todo 리스트 조회
-    public List<TodoDTO> getAllTodos() {
-        List<TodoEntity> todoEntityList = todoRepository.findAll();
-        return todoEntityList.stream()
-                .map(TodoDTO::toTodoDTO)
-                .collect(Collectors.toList());
+    public List<Todo> getAllTodos() {
+        return todoRepository.findAll();
     }
 
     // - Todo 특정 id로 조회
-    public TodoDTO getTodoById(Long id) {
-        Optional<TodoEntity> todoEntityOptional = todoRepository.findById(id);
-        return todoEntityOptional.map(TodoDTO::toTodoDTO).orElse(null);
+    public Todo getTodoById(Long id) {
+        return findVerifiedTodo(id);
     }
+
+    private Todo findVerifiedTodo(Long id) {
+        Optional<Todo> optionalTodo = todoRepository.findById(id);
+        Todo findTodo = optionalTodo.orElseThrow(() -> new BusinessLogicException(ExceptionCode.TODO_NOT_FOUND));
+        return findTodo;
+    }
+
 
     // ** Update
     // - Todo 완료 표시
     public void completeTodoItem(Long id) {
-        TodoEntity todoEntity = todoRepository.findById(id).orElse(null);
-        if (todoEntity != null) {
-            todoEntity.setCompleted(true);
-            todoRepository.save(todoEntity);
+        Todo todo = todoRepository.findById(id).orElse(null);
+        if (todo != null) {
+            todo.setCompleted(true);
+            todoRepository.save(todo);
         }
     }
 
     // - Todo 수정
-    public TodoDTO updateTodo(Long id, TodoDTO todoDTO) {
-        Optional<TodoEntity> todoEntityOptional = todoRepository.findById(id);
-        if (todoEntityOptional.isPresent()) {
-            TodoEntity todoEntity = todoEntityOptional.get();
-            todoEntity.setTitle(todoDTO.getTitle());
-            todoEntity.setCompleted(todoEntity.isCompleted());
-            TodoEntity updatedTodo = todoRepository.save(todoEntity);
-            return TodoDTO.toTodoDTO(updatedTodo);
-        }
-        return null;
+    public Todo updateTodo(Todo todo) {
+        Todo findTodo = findVerifiedTodo(todo.getId());
+        verifyExistsTitle(todo.getTitle());
+        Optional.ofNullable(todo.getTitle()).ifPresent(title -> findTodo.setTitle(title));
+        Optional.ofNullable(todo.getTodoOrder()).ifPresent(order -> findTodo.setTodoOrder(order));
+        Optional.ofNullable(todo.isCompleted()).ifPresent(completed -> findTodo.setCompleted(completed));
+
+        return todoRepository.save(findTodo);
     }
 
 
@@ -75,6 +80,7 @@ public class TodoService {
 
     // - Todo 특정 id로 삭제
     public void deleteTodo(Long id) {
-        todoRepository.deleteById(id);
+        Todo findTodo = findVerifiedTodo(id);
+        todoRepository.delete(findTodo);
     }
 }
