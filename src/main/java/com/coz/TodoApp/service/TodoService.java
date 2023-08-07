@@ -30,6 +30,7 @@ public class TodoService {
     // ** Read
     // - Todo 리스트 조회
     public List<Todo> getAllTodos() {
+        System.out.println("To-do Application !");
         return todoRepository.findAll();
     }
 
